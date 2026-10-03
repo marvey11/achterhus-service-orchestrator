@@ -10,7 +10,7 @@ necessary image is current, and executes the configured services in dependency o
 - Pull or refresh an image only when the remote GHCR manifest differs
 - Execute containers with their required environment, command and volumes
 - Enforce an execution timeout through the container watchguard
-- Report lifecycle events to the Telemetry API when `TELEMETRY_API_URL` is configured
+- Report lifecycle events to the [Telemetry API](https://github.com/marvey11/achterhus-telemetry-api) if `TELEMETRY_API_URL` is configured
 
 ## Configuration format
 
