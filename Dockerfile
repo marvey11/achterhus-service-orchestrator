@@ -1,25 +1,56 @@
-# syntax=docker/dockerfile:1
+# ==========================================
+# Stage 1: Build & Dependency Resolution
+# ==========================================
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
-FROM python:3.12-slim AS builder
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
 
 WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync \
+    --frozen \
+    --no-dev \
+    --no-install-project
 
 COPY . .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir .
 
-FROM python:3.12-slim AS runtime
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync \
+    --frozen \
+    --no-dev
+
+# ==========================================
+# Stage 2: Production Runtime
+# ==========================================
+FROM python:3.12-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PATH="/app/.venv/bin:$PATH"
+
+# Install gosu and user management tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gosu \
+    passwd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create dedicated non-root application user
+RUN useradd -u 1000 -m -s /bin/bash orchestrator
 
 WORKDIR /app
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY src /app/src
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app /app
 
-CMD ["telemetry-api"]
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "orchestrator"]
+CMD ["/data/services.yaml"]
