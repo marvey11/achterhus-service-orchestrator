@@ -13,6 +13,7 @@ source = { editable = "." }
 dependencies = [
     { name = "docker" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "requests" },
 ]
 
@@ -32,6 +33,7 @@ dev = [
 requires-dist = [
     { name = "docker", specifier = ">=7.2.0" },
     { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.34.2" },
 ]
 
