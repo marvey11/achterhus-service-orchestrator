@@ -170,7 +170,11 @@ class OrchestratorConfig(BaseModel):
         if not file_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {file_path}")
 
-        raw_data: object = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+        # Read raw YAML and expand $VAR / ${VAR} environment variables
+        raw_text = file_path.read_text(encoding="utf-8")
+        expanded_text = os.path.expandvars(raw_text)
+
+        raw_data: object = yaml.safe_load(expanded_text)
         if raw_data is None:
             raise ValueError(f"YAML file {file_path} is empty")
 
