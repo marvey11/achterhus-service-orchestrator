@@ -6,7 +6,9 @@ from support import (
     OrchestratorConfig,
     Path,
     ServiceConfig,
+    TelemetryReporter,
     _DummyImageManager,
+    _DummySession,
     _DummyWatchguard,
     pytest,
     sys,
@@ -30,6 +32,35 @@ def test_orchestrator_executes_each_service_in_dependency_order() -> None:
     batches = orchestrator.run()
 
     assert [batch.services for batch in batches] == [("database",), ("api",)]
+
+
+def test_orchestrator_registers_run_before_starting_container() -> None:
+    config = OrchestratorConfig(
+        services={"worker": ServiceConfig(image="ghcr.io/example/worker:latest")},
+        graphs={"nightly": {"worker": set()}},
+    )
+    session = _DummySession()
+    watchguard = _DummyWatchguard()
+    orchestrator = Orchestrator(
+        config,
+        image_manager=_DummyImageManager(),
+        watchguard=watchguard,
+        telemetry_reporter=TelemetryReporter(
+            api_url="http://telemetry.local",
+            session=session,
+        ),
+    )
+
+    orchestrator.run()
+
+    registered_run_id = session.calls[0][2]["json"]["run_id"]
+    assert session.calls[0][0] == "POST"
+    assert session.calls[0][1] == "http://telemetry.local/api/v1/runs"
+    assert registered_run_id == watchguard.calls[0][1]
+    assert [call[2]["json"]["status"] for call in session.calls[1:]] == [
+        "IMAGE_PULLING",
+        "STARTING",
+    ]
 
 
 def test_start_cli_and_image_reference_parsing(
