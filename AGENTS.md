@@ -22,14 +22,20 @@ uv run ruff format --check .
 uv run mypy .
 ```
 
-## Conventions
+## Development Conventions
 
 - Target Python 3.12 or newer.
-- Use 4 spaces and a maximum line length of 88 characters.
-- Use double-quoted strings, consistent with Ruff format configuration.
 - Add explicit annotations for functions, parameters, and return values.
-- Avoid broad refactors and unrelated formatting changes.
-- Do not add comments that merely restate the code. Add a comment only when the reason for a non-obvious decision cannot be expressed clearly in code.
+- Prefer `typing.Annotated` for Typer command arguments and options when defining
+  CLI metadata.
+- Use Rich `Console` instances for CLI output. Use a stderr console for warnings
+  and errors and a stdout console for normal output.
+- Preserve command exit codes and user-visible output unless changing the CLI
+  contract is part of the task.
+- Raise exceptions with `from err` when converting an underlying error at a
+  boundary, such as a CLI handler.
+- Do not add comments that merely restate the code. Add a comment only when the
+  reason for a non-obvious decision cannot be expressed clearly in the code.
 
 ## Validation workflow
 
