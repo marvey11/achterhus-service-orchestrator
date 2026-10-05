@@ -42,7 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create dedicated non-root application user
-RUN useradd -u 1000 -m -s /bin/bash orchestrator
+ARG DOCKER_SOCKET_GID=988
+RUN groupadd --gid "${DOCKER_SOCKET_GID}" docker-host \
+    && useradd -u 1000 -m -s /bin/bash -G docker-host orchestrator
 
 WORKDIR /app
 
