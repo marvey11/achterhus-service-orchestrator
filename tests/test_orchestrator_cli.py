@@ -17,11 +17,9 @@ def test_orchestrator_executes_each_service_in_dependency_order() -> None:
     config = OrchestratorConfig(
         services={
             "database": ServiceConfig(image="ghcr.io/example/db:latest"),
-            "api": ServiceConfig(
-                image="ghcr.io/example/api:latest",
-                depends_on={"database"},
-            ),
-        }
+            "api": ServiceConfig(image="ghcr.io/example/api:latest"),
+        },
+        graphs={"nightly": {"database": set(), "api": {"database"}}},
     )
 
     orchestrator = Orchestrator(
@@ -43,22 +41,31 @@ def test_start_cli_and_image_reference_parsing(
 services:
   app:
     image: ghcr.io/example/app:latest
+graphs:
+  nightly:
+    app: []
+  weekly:
+    app: []
 """.strip(),
         encoding="utf-8",
     )
-    monkeypatch.setattr(sys, "argv", ["prog", str(config_path)])
+    monkeypatch.setattr(sys, "argv", ["prog", str(config_path), "--graph", "weekly"])
 
     import orchestrator.main as orchestrator_main
 
+    selected_graphs: list[str | None] = []
+
     class _DummyOrchestrator:
-        def __init__(self, config: object) -> None:
+        def __init__(self, config: object, *, graph: str | None = None) -> None:
             self.config = config
+            selected_graphs.append(graph)
 
         def run(self) -> None:
             return None
 
     monkeypatch.setattr(orchestrator_main, "Orchestrator", _DummyOrchestrator)
     orchestrator_main.start()
+    assert selected_graphs == ["weekly"]
     assert DockerImageManager.parse_image_reference("ghcr.io/example/app:1.2.3") == (
         "ghcr.io",
         "example/app",
@@ -69,14 +76,10 @@ services:
         "busybox",
         "latest",
     )
-    assert (
-        ServiceConfig.model_validate(
-            {
-                "image": "ghcr.io/example/app:latest",
-                "depends_on": None,
-                "environment": None,
-                "volumes": "host:/data",
-            }
-        ).depends_on
-        == set()
-    )
+    assert ServiceConfig.model_validate(
+        {
+            "image": "ghcr.io/example/app:latest",
+            "environment": None,
+            "volumes": "host:/data",
+        }
+    ).volumes == ["host:/data"]

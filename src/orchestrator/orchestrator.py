@@ -24,9 +24,11 @@ class Orchestrator:
         *,
         image_manager: ImageManagerLike | None = None,
         watchguard: ContainerRunnerLike | None = None,
+        graph: str | None = None,
     ) -> None:
         self.config = config
-        self.graph = ServiceDependencyGraph(config)
+        self.scope = config.select_graph(graph)
+        self.graph = ServiceDependencyGraph(self.scope)
         self.image_manager: ImageManagerLike = image_manager or DockerImageManager()
         self.watchguard: ContainerRunnerLike = watchguard or ContainerWatchguard()
 
@@ -38,7 +40,7 @@ class Orchestrator:
                 break
             batches.append(ExecutionBatch(services=ready))
             for service_name in ready:
-                service = self.config.services[service_name]
+                service = self.scope.services[service_name]
                 self.image_manager.ensure_image_current(service.image)
                 run_id = str(uuid.uuid4())
                 result = self.watchguard.run_container(

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .config import OrchestratorConfig
+    from .config import GraphScope
 
 
 class ExecutionStatus(Enum):
@@ -50,14 +50,12 @@ class ExecutionStateError(DependencyGraphError):
 class ServiceDependencyGraph:
     """Manages service DAG lifecycle, execution state, and topological ordering."""
 
-    def __init__(self, config: OrchestratorConfig) -> None:
-        self._config = config
-        self._graph: dict[str, set[str]] = {
-            name: cfg.depends_on for name, cfg in config.services.items()
-        }
+    def __init__(self, scope: GraphScope) -> None:
+        self._graph = scope.dependencies
+        service_names = scope.services
         self._sorter: TopologicalSorter[str] = TopologicalSorter(self._graph)
         self._statuses: dict[str, ExecutionStatus] = {
-            name: ExecutionStatus.PENDING for name in config.services
+            name: ExecutionStatus.PENDING for name in service_names
         }
 
         try:

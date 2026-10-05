@@ -2,21 +2,18 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ServiceConfig(BaseModel):
     """Configuration definition for an individual Docker service."""
 
     image: str = Field(..., description="Docker image name/tag")
-    depends_on: set[str] = Field(
-        default_factory=set,
-        description="Set of service names this service directly depends on",
-    )
     environment: dict[str, str] = Field(
         default_factory=dict,
         description="Environment variables to pass into the container",
@@ -42,21 +39,6 @@ class ServiceConfig(BaseModel):
         description="Optional Docker network to attach the container to",
     )
 
-    @field_validator("depends_on", mode="before")
-    @classmethod
-    def _normalise_dependencies(cls, value: object) -> set[str]:
-        if value in (None, ""):
-            return set()
-        if isinstance(value, str):
-            return {value}
-        if isinstance(value, (set, frozenset, list, tuple)):
-            iterable = cast("Iterable[object]", value)
-            return {str(item) for item in iterable}
-        raise TypeError(
-            "depends_on must be a string, a set of strings, "
-            "a sequence of strings, or null"
-        )
-
     @field_validator("environment", mode="before")
     @classmethod
     def _normalise_environment(cls, value: object) -> dict[str, str]:
@@ -80,28 +62,101 @@ class ServiceConfig(BaseModel):
         raise TypeError("volumes must be a string, sequence of strings, or null")
 
 
+@dataclass(frozen=True, slots=True)
+class GraphScope:
+    """Service definitions and dependency edges selected for one graph."""
+
+    name: str
+    services: dict[str, ServiceConfig]
+    dependencies: dict[str, set[str]]
+
+
 class OrchestratorConfig(BaseModel):
-    """Top-level pipeline configuration containing all service nodes."""
+    """Shared service definitions and named execution graphs."""
 
     services: dict[str, ServiceConfig] = Field(
         ..., description="Map of service name to service configuration"
     )
+    graphs: dict[str, dict[str, set[str]]] = Field(
+        ..., description="Map of graph name to service dependency mapping"
+    )
 
-    @field_validator("services")
+    @field_validator("graphs", mode="before")
     @classmethod
-    def validate_dependency_references(
-        cls, services: dict[str, ServiceConfig]
-    ) -> dict[str, ServiceConfig]:
-        defined_services = set(services.keys())
-        for service_name, config in services.items():
-            missing_deps = config.depends_on - defined_services
-            if missing_deps:
-                missing_str = ", ".join(sorted(missing_deps))
+    def _normalise_graphs(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            raise TypeError(
+                "graphs must be a mapping of graph names to service mappings"
+            )
+        normalized: dict[str, dict[str, set[str]]] = {}
+        for graph_name, graph_value in value.items():
+            if not isinstance(graph_value, Mapping):
+                raise TypeError(f"graph '{graph_name}' must be a service mapping")
+            dependencies: dict[str, set[str]] = {}
+            for service_name, dependency_values in graph_value.items():
+                if dependency_values is None:
+                    dependencies[str(service_name)] = set()
+                elif isinstance(dependency_values, str):
+                    dependencies[str(service_name)] = {dependency_values}
+                elif isinstance(dependency_values, (list, tuple, set, frozenset)):
+                    items = cast("Iterable[object]", dependency_values)
+                    dependencies[str(service_name)] = {str(item) for item in items}
+                else:
+                    raise TypeError(
+                        f"dependencies for service '{service_name}' in graph "
+                        f"'{graph_name}' must be a sequence of service names"
+                    )
+            normalized[str(graph_name)] = dependencies
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_graph_references(self) -> OrchestratorConfig:
+        if not self.graphs:
+            raise ValueError("at least one graph must be defined")
+        service_names = set(self.services)
+        for graph_name, graph in self.graphs.items():
+            if not graph:
                 raise ValueError(
-                    f"Service '{service_name}' references undefined dependencies: "
-                    f"{missing_str}"
+                    f"graph '{graph_name}' must include at least one service"
                 )
-        return services
+            graph_services = set(graph)
+            unknown_services = graph_services - service_names
+            if unknown_services:
+                unknown = ", ".join(sorted(unknown_services))
+                raise ValueError(
+                    f"Graph '{graph_name}' references undefined services: {unknown}"
+                )
+            for service_name, dependencies in graph.items():
+                unknown_dependencies = dependencies - graph_services
+                if unknown_dependencies:
+                    unknown = ", ".join(sorted(unknown_dependencies))
+                    raise ValueError(
+                        f"Service '{service_name}' in graph '{graph_name}' depends on "
+                        f"services not included in that graph: {unknown}"
+                    )
+        return self
+
+    @property
+    def default_graph_name(self) -> str:
+        return next(iter(self.graphs))
+
+    def select_graph(self, name: str | None = None) -> GraphScope:
+        graph_name = self.default_graph_name if name is None else name
+        try:
+            dependencies = self.graphs[graph_name]
+        except KeyError as err:
+            available = ", ".join(self.graphs)
+            raise ValueError(
+                f"Unknown graph '{graph_name}'. Available graphs: {available}"
+            ) from err
+        return GraphScope(
+            name=graph_name,
+            services={
+                service_name: self.services[service_name]
+                for service_name in dependencies
+            },
+            dependencies=dependencies,
+        )
 
     @classmethod
     def from_yaml_file(cls, path: Path | str) -> OrchestratorConfig:
@@ -109,25 +164,13 @@ class OrchestratorConfig(BaseModel):
         if not file_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {file_path}")
 
-        # Read raw YAML and expand $VAR / ${VAR} environment variables
         raw_text = file_path.read_text(encoding="utf-8")
         expanded_text = os.path.expandvars(raw_text)
-
         raw_data: object = yaml.safe_load(expanded_text)
         if raw_data is None:
             raise ValueError(f"YAML file {file_path} is empty")
-
         if not isinstance(raw_data, dict):
             raise ValueError(
                 f"YAML content in {file_path} must be a dictionary top-level"
             )
-
-        raw_mapping = cast("dict[str, object]", raw_data)
-        payload = raw_mapping.get("services", raw_mapping)
-        if not isinstance(payload, dict):
-            raise ValueError(
-                "The service configuration must define a 'services' mapping or a "
-                "top-level mapping keyed by service name"
-            )
-
-        return cls.model_validate({"services": payload})
+        return cls.model_validate(raw_data)
