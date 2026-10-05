@@ -14,10 +14,15 @@ necessary image is current, and executes the configured services in dependency o
 
 ## Configuration format
 
+The `services` section defines each eligible service once. The `graphs` section
+then names execution graphs and lists their service dependencies. Each graph is a
+mapping from service names to the services that must complete first. Use an empty
+list for a service with no dependencies in that graph.
+
 ```yaml
 services:
   postgres:
-    image: ghcr.io/marvey11/achterhus-telemetry-api:latest
+    image: ghcr.io/example/postgres:latest
     environment:
       POSTGRES_DB: telemetry
       POSTGRES_USER: telemetry
@@ -27,36 +32,46 @@ services:
 
   api:
     image: ghcr.io/marvey11/achterhus-telemetry-api:latest
-    depends_on:
-      - postgres
     environment:
       TELEMETRY_API_URL: http://telemetry-api:8000
     command: ["python", "-m", "telemetry.main"]
     timeout_seconds: 300
+
+  reports:
+    image: ghcr.io/example/reports:latest
+
+  backup:
+    image: ghcr.io/example/backup:latest
+
+graphs:
+  nightly:
+    postgres: []
+    api: [postgres]
+    backup: [postgres, api]
+
+  weekly:
+    postgres: []
+    api: [postgres]
+    reports: [api]
+    backup: [postgres, api, reports]
 ```
 
-Each service entry may include:
-
-- `image`
-- `depends_on`
-- `environment`
-- `command`
-- `volumes`
-- `timeout_seconds`
-- `working_dir`
-- `network`
+Every service and dependency named in a graph must be defined under `services`.
+Dependencies must also appear in that graph. Service options may include `image`,
+`environment`, `command`, `volumes`, `timeout_seconds`, `working_dir`, and `network`.
 
 ## Command line
 
 Install the project and run the orchestrator with a YAML configuration file:
 
 ```bash
-uv run orchestrator services.yaml
+uv run orchestrator services.yaml --graph weekly
 ```
 
-The configuration path defaults to `services.yaml`. Normal progress is written to
-standard output; warnings and errors are written to standard error with Rich
-formatting.
+The configuration path defaults to `services.yaml`. If `--graph` is omitted, the
+first graph declared in the YAML file runs. `--scope` is an alias for `--graph`.
+Normal progress is written to standard output; warnings and errors are written to
+standard error with Rich formatting.
 
 ## Local development
 

@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.logging import RichHandler
 
-from .config import OrchestratorConfig, ServiceConfig
+from .config import GraphScope, OrchestratorConfig, ServiceConfig
 from .docker_runtime import (
     ContainerRunnerLike,
     ContainerWatchguard,
@@ -47,18 +47,31 @@ def run(
         Path,
         typer.Argument(help="Path to the YAML service configuration file"),
     ] = Path("services.yaml"),
+    graph: Annotated[
+        str | None,
+        typer.Option("--graph", "--scope", help="Named graph or scope to execute"),
+    ] = None,
 ) -> None:
     """Execute configured services in dependency order."""
     configure_logging()
     try:
         orchestrator_config = OrchestratorConfig.from_yaml_file(config)
-        batches = Orchestrator(orchestrator_config).run() or []
+        selected_graph = orchestrator_config.select_graph(graph)
+        batches = (
+            Orchestrator(
+                orchestrator_config,
+                graph=selected_graph.name,
+            ).run()
+            or []
+        )
     except Exception as err:
         stderr_console.print(f"[bold red]Error:[/bold red] {err}")
         raise typer.Exit(code=1) from err
 
     count = sum(len(batch.services) for batch in batches)
-    stdout_console.print(f"Completed orchestration for {count} service(s).")
+    stdout_console.print(
+        f"Completed graph '{selected_graph.name}' for {count} service(s)."
+    )
 
 
 def start() -> None:
@@ -74,6 +87,7 @@ __all__ = [
     "ExecutionBatch",
     "ExecutionStateError",
     "ExecutionStatus",
+    "GraphScope",
     "ImageManagerLike",
     "Orchestrator",
     "OrchestratorConfig",

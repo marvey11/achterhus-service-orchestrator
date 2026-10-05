@@ -10,70 +10,87 @@ from support import (
 )
 
 
-def test_service_config_supports_yaml_and_topological_order(tmp_path: Path) -> None:
+def test_yaml_selects_named_graphs_with_shared_services(tmp_path: Path) -> None:
     config_path = tmp_path / "services.yaml"
     config_path.write_text(
         """
 services:
-  database:
-    image: ghcr.io/example/postgres:latest
-  api:
-    image: ghcr.io/example/api:latest
-    depends_on:
-      - database
+  service_a:
+    image: example/a:latest
+  service_b:
+    image: example/b:latest
+  service_c:
+    image: example/c:latest
+  backup:
+    image: example/backup:latest
+graphs:
+  nightly:
+    service_a: []
+    service_b: []
+    backup: [service_a, service_b]
+  weekly:
+    service_a: []
+    service_b: []
+    service_c: []
+    backup: [service_a, service_b, service_c]
 """.strip(),
         encoding="utf-8",
     )
 
     config = OrchestratorConfig.from_yaml_file(config_path)
-    graph = ServiceDependencyGraph(config)
+    assert config.default_graph_name == "nightly"
+    nightly = config.select_graph()
+    weekly = config.select_graph("weekly")
+    assert set(nightly.services) == {"service_a", "service_b", "backup"}
+    assert set(weekly.services) == {"service_a", "service_b", "service_c", "backup"}
 
-    assert graph.get_ready_services() == ("database",)
-    graph.mark_completed("database")
-    assert graph.get_ready_services() == ("api",)
+    graph = ServiceDependencyGraph(weekly)
+    assert graph.get_execution_batches() == [
+        ExecutionBatch(services=("service_a", "service_b", "service_c")),
+        ExecutionBatch(services=("backup",)),
+    ]
 
 
-def test_yaml_rejects_undefined_dependencies(tmp_path: Path) -> None:
-    config_path = tmp_path / "services.yaml"
-    config_path.write_text(
-        """
-services:
-  api:
-    image: ghcr.io/example/api:latest
-    depends_on:
-      - missing-service
-""".strip(),
-        encoding="utf-8",
+def test_graph_rejects_unknown_services_and_dependencies() -> None:
+    with pytest.raises(ValueError, match="undefined services"):
+        OrchestratorConfig.model_validate(
+            {
+                "services": {"api": {"image": "example/api:latest"}},
+                "graphs": {"nightly": {"missing": []}},
+            }
+        )
+
+    with pytest.raises(ValueError, match="not included in that graph"):
+        OrchestratorConfig.model_validate(
+            {
+                "services": {"api": {"image": "example/api:latest"}},
+                "graphs": {"nightly": {"api": ["database"]}},
+            }
+        )
+
+
+def test_config_requires_graphs_and_rejects_unknown_graph_name() -> None:
+    with pytest.raises(ValueError, match="at least one graph"):
+        OrchestratorConfig.model_validate(
+            {"services": {"api": {"image": "example/api:latest"}}, "graphs": {}}
+        )
+
+    config = OrchestratorConfig.model_validate(
+        {
+            "services": {"api": {"image": "example/api:latest"}},
+            "graphs": {"nightly": {"api": []}},
+        }
     )
-
-    with pytest.raises(ValueError, match="undefined dependencies"):
-        OrchestratorConfig.from_yaml_file(config_path)
+    with pytest.raises(ValueError, match="Unknown graph 'weekly'"):
+        config.select_graph("weekly")
 
 
 def test_service_config_validation_and_yaml_errors(tmp_path: Path) -> None:
-    with pytest.raises(TypeError, match="depends_on"):
-        ServiceConfig.model_validate(
-            {
-                "image": "ghcr.io/example/app:latest",
-                "depends_on": object(),
-            }
-        )
-
     with pytest.raises(TypeError, match="environment"):
-        ServiceConfig.model_validate(
-            {
-                "image": "ghcr.io/example/app:latest",
-                "environment": 7,
-            }
-        )
+        ServiceConfig.model_validate({"image": "example/app:latest", "environment": 7})
 
     with pytest.raises(TypeError, match="volumes"):
-        ServiceConfig.model_validate(
-            {
-                "image": "ghcr.io/example/app:latest",
-                "volumes": 7,
-            }
-        )
+        ServiceConfig.model_validate({"image": "example/app:latest", "volumes": 7})
 
     missing = tmp_path / "missing.yaml"
     with pytest.raises(FileNotFoundError):
@@ -89,24 +106,16 @@ def test_service_config_validation_and_yaml_errors(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="dictionary top-level"):
         OrchestratorConfig.from_yaml_file(invalid_top)
 
-    invalid_services = tmp_path / "invalid-services.yaml"
-    invalid_services.write_text("services: value\n", encoding="utf-8")
-    with pytest.raises(ValueError, match=r"services.*mapping"):
-        OrchestratorConfig.from_yaml_file(invalid_services)
 
-
-def test_service_config_normalises_lists_and_values() -> None:
+def test_service_config_normalises_values() -> None:
     config = ServiceConfig.model_validate(
         {
-            "image": "ghcr.io/example/app:latest",
-            "depends_on": ["database", "queue"],
+            "image": "example/app:latest",
             "environment": {"DEBUG": "1", "PORT": 8080},
-            "volumes": ["data:/data"],
+            "volumes": "data:/data",
             "timeout_seconds": 42,
         }
     )
-
-    assert config.depends_on == {"database", "queue"}
     assert config.environment == {"DEBUG": "1", "PORT": "8080"}
     assert config.volumes == ["data:/data"]
     assert config.timeout_seconds == 42
@@ -115,14 +124,12 @@ def test_service_config_normalises_lists_and_values() -> None:
 def test_graph_handles_failure_and_cycle_detection() -> None:
     config = OrchestratorConfig(
         services={
-            "database": ServiceConfig(image="ghcr.io/example/db:latest"),
-            "api": ServiceConfig(
-                image="ghcr.io/example/api:latest",
-                depends_on={"database"},
-            ),
-        }
+            "database": ServiceConfig(image="example/db:latest"),
+            "api": ServiceConfig(image="example/api:latest"),
+        },
+        graphs={"default": {"database": set(), "api": {"database"}}},
     )
-    graph = ServiceDependencyGraph(config)
+    graph = ServiceDependencyGraph(config.select_graph())
     graph.get_ready_services()
     graph.mark_failed("database")
     assert graph.statuses["database"].name == "FAILED"
@@ -133,9 +140,10 @@ def test_graph_handles_failure_and_cycle_detection() -> None:
 
     cycle_config = OrchestratorConfig(
         services={
-            "a": ServiceConfig(image="ghcr.io/example/a:latest", depends_on={"b"}),
-            "b": ServiceConfig(image="ghcr.io/example/b:latest", depends_on={"a"}),
-        }
+            "a": ServiceConfig(image="example/a:latest"),
+            "b": ServiceConfig(image="example/b:latest"),
+        },
+        graphs={"cycle": {"a": {"b"}, "b": {"a"}}},
     )
     with pytest.raises(Exception):
-        ServiceDependencyGraph(cycle_config)
+        ServiceDependencyGraph(cycle_config.select_graph("cycle"))
