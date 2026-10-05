@@ -46,6 +46,18 @@ Each service entry may include:
 - `working_dir`
 - `network`
 
+## Command line
+
+Install the project and run the orchestrator with a YAML configuration file:
+
+```bash
+uv run orchestrator services.yaml
+```
+
+The configuration path defaults to `services.yaml`. Normal progress is written to
+standard output; warnings and errors are written to standard error with Rich
+formatting.
+
 ## Local development
 
 ```bash
