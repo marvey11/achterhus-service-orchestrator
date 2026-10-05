@@ -10,7 +10,15 @@ necessary image is current, and executes the configured services in dependency o
 - Pull or refresh an image only when the remote GHCR manifest differs
 - Execute containers with their required environment, command and volumes
 - Enforce an execution timeout through the container watchguard
-- Report lifecycle events to the [Telemetry API](https://github.com/marvey11/achterhus-telemetry-api) if `TELEMETRY_API_URL` is configured
+- Register each service run and report its lifecycle to the [Telemetry API](https://github.com/marvey11/achterhus-telemetry-api) when `TELEMETRY_API_URL` is configured
+
+For each service execution, the orchestrator creates one UUID, registers it with
+the Telemetry API in `SCHEDULED` state, and passes the same value to the container
+as `SERVICE_RUN_ID`. It reports `IMAGE_PULLING` when it pulls an updated image and
+`STARTING` before creating and starting the container. The service's Telemetry
+Client uses that run ID to report application status and events; it must not
+register a second run. Telemetry reporting is disabled when `TELEMETRY_API_URL` is
+empty or unset.
 
 ## Configuration format
 
