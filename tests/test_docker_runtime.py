@@ -95,9 +95,10 @@ def test_watchguard_reports_oom_and_timeout_statuses() -> None:
             self.status = "running"
             self.attrs = {"State": {"ExitCode": 0, "OOMKilled": False}}
 
+    session = _DummySession()
     telemetry = TelemetryReporter(
         api_url="http://telemetry.local",
-        session=_DummySession(),
+        session=session,
     )
 
     def _run_oom_container(**_kwargs: object) -> _OOMContainer:
@@ -125,6 +126,7 @@ def test_watchguard_reports_oom_and_timeout_statuses() -> None:
     assert oom_result.timed_out is False
     assert oom_result.exit_code == 137
     assert oom_result.status == "exited"
+    assert session.calls[0][2]["json"]["status"] == "OOM_KILLED"
 
     def _run_timeout_container(**_kwargs: object) -> _TimeoutContainer:
         _ = _kwargs
@@ -148,3 +150,32 @@ def test_watchguard_reports_oom_and_timeout_statuses() -> None:
     )
     assert timeout_result.timed_out is True
     assert timeout_result.exit_code == 137
+
+
+def test_watchguard_does_not_report_success_after_clean_exit() -> None:
+    class _SuccessfulContainer(_DummyContainer):
+        def reload(self) -> None:
+            self.status = "exited"
+            self.attrs = {"State": {"ExitCode": 0, "OOMKilled": False}}
+
+    def _run_container(**_kwargs: object) -> _SuccessfulContainer:
+        _ = _kwargs
+        return _SuccessfulContainer()
+
+    session = _DummySession()
+    watchguard = ContainerWatchguard(
+        docker_client=SimpleNamespace(containers=SimpleNamespace(run=_run_container)),
+        telemetry_reporter=TelemetryReporter(
+            api_url="http://telemetry.local",
+            session=session,
+        ),
+    )
+
+    result = watchguard.run_container(
+        "worker",
+        ServiceConfig(image="ghcr.io/example/worker:latest"),
+        run_id="11111111-1111-4111-8111-111111111114",
+    )
+
+    assert result.exit_code == 0
+    assert session.calls == []

@@ -206,24 +206,19 @@ class ContainerWatchguard:
                         exit_code = None
                     oom_killed = bool(state_dict.get("OOMKilled", False))
 
-                    if oom_killed:
-                        reported_status = "OOM_KILLED"
-                    elif exit_code == 0 or exit_code is None:
-                        reported_status = "SUCCESS"
-                    else:
-                        reported_status = "FAILED"
+                    if oom_killed or (exit_code is not None and exit_code != 0):
+                        reported_status = "OOM_KILLED" if oom_killed else "FAILED"
+                        error_details: dict[str, JSONValue] | None = None
+                        if exit_code is not None:
+                            error_details = {"exit_code": exit_code}
 
-                    error_details: dict[str, JSONValue] | None = None
-                    if exit_code is not None:
-                        error_details = {"exit_code": exit_code}
-
-                    self.telemetry_reporter.update_status(
-                        run_id,
-                        reported_status,
-                        source="watchguard",
-                        error_details=error_details,
-                        timestamp=datetime.now(UTC),
-                    )
+                        self.telemetry_reporter.update_status(
+                            run_id,
+                            reported_status,
+                            source="watchguard",
+                            error_details=error_details,
+                            timestamp=datetime.now(UTC),
+                        )
                     return WatchguardResult(
                         container_id=str(getattr(container, "id", "")),
                         exit_code=exit_code,
