@@ -2,6 +2,8 @@
 
 The Achterhus service orchestrator resolves Docker service dependency graphs, ensures the
 necessary image is current, and executes the configured services in dependency order.
+Each invocation reads the configuration and runs the selected graph once, then exits.
+It does not stay running to watch for or schedule future executions.
 
 ## Responsibilities
 
@@ -17,8 +19,11 @@ the Telemetry API in `SCHEDULED` state, and passes the same value to the contain
 as `SERVICE_RUN_ID`. It reports `IMAGE_PULLING` when it pulls an updated image and
 `STARTING` before creating and starting the container. The service's Telemetry
 Client uses that run ID to report application status and events; it must not
-register a second run. Telemetry reporting is disabled when `TELEMETRY_API_URL` is
-empty or unset.
+register a second run. The application reports `SUCCESS` when its work completes;
+the Watchguard does not repeat that terminal status after observing a clean
+container exit. It reports exceptional outcomes such as timeouts and
+out-of-memory termination. Telemetry reporting is disabled when
+`TELEMETRY_API_URL` is empty or unset.
 
 ## Configuration format
 
