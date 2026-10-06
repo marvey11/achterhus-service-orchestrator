@@ -1,13 +1,63 @@
-.venv
-**/__pycache__
-**/*.pyc
+# ==========================================
+# VCS & Editor Artifacts
+# ==========================================
 .git
+.gitignore
 .github
 .vscode
-.mypy_cache
-.pytest_cache
-.ruff_cache
-.prompts
-dist
-build
-*.egg-info
+.idea
+*.swp
+*.swo
+
+# ==========================================
+# Python & UV Environments / Artifacts
+# ==========================================
+.venv
+**/__pycache__
+**/*.py[cod]
+*$py.class
+.uv
+uv.lock.bak
+
+# Build and Distribution Artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+
+# ==========================================
+# Testing, Linting & Type Checking
+# ==========================================
+tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.coverage.*
+coverage.xml
+
+# ==========================================
+# Project Documentation & Task Runners
+# ==========================================
+docs/
+*.md
+!README.md
+LICENSE
+Dockerfile*
+.env*
+
+# ==========================================
+# Scripts Directory Selective Exclusion
+# ==========================================
+# Exclude all scripts
+scripts/
+# Re-include entrypoint.sh specifically
+!scripts/entrypoint.sh
+
+# ==========================================
+# Other Artifacts
+# ==========================================
+systemd/
+.prompts/
+*.log
