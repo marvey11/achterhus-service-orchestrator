@@ -249,6 +249,7 @@ class ContainerWatchguard:
                 time.sleep(0.1)
         finally:
             try:
+                container.logs()
                 container.remove(force=True)
             except Exception as exc:
                 logger.debug(
