@@ -88,19 +88,24 @@ class OrchestratorConfig(BaseModel):
             raise TypeError(
                 "graphs must be a mapping of graph names to service mappings"
             )
+
+        mapping = cast("Mapping[object, object]", value)
         normalized: dict[str, dict[str, set[str]]] = {}
-        for graph_name, graph_value in value.items():
+        for graph_name, graph_value in mapping.items():
             if not isinstance(graph_value, Mapping):
                 raise TypeError(f"graph '{graph_name}' must be a service mapping")
+
+            graph_mapping = cast("Mapping[object, object]", graph_value)
             dependencies: dict[str, set[str]] = {}
-            for service_name, dependency_values in graph_value.items():
+            for service_name, dependency_values in graph_mapping.items():
+                service_key = str(service_name)
                 if dependency_values is None:
-                    dependencies[str(service_name)] = set()
+                    dependencies[service_key] = set()
                 elif isinstance(dependency_values, str):
-                    dependencies[str(service_name)] = {dependency_values}
+                    dependencies[service_key] = {dependency_values}
                 elif isinstance(dependency_values, (list, tuple, set, frozenset)):
                     items = cast("Iterable[object]", dependency_values)
-                    dependencies[str(service_name)] = {str(item) for item in items}
+                    dependencies[service_key] = {str(item) for item in items}
                 else:
                     raise TypeError(
                         f"dependencies for service '{service_name}' in graph "
