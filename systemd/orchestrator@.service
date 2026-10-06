@@ -1,0 +1,16 @@
+[Unit]
+Description=Service Orchestrator (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/achterhus/service-orchestrator.env
+# %i resolves to "nightly" or "weekly" depending on which timer invokes it
+ExecStart=/usr/bin/docker compose \
+    --project-directory ${PROJECT_DIR} \
+    --env-file %h/.config/achterhus/service-orchestrator.env \
+    run --rm orchestrator /data/services.yaml --graph %i
+
+[Install]
+WantedBy=default.target
