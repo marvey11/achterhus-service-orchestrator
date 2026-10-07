@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import docker
 import requests
+from requests.utils import parse_dict_header
 
 from .graph import WatchguardResult
 from .telemetry import TelemetryReporter
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from .config import ServiceConfig
     from .contracts import JSONValue, SessionLike
@@ -93,18 +94,43 @@ class DockerImageManager:
     def get_remote_manifest_digest(self, image_name: str) -> str | None:
         registry, repository, tag = self.parse_image_reference(image_name)
         url = f"https://{registry}/v2/{repository}/manifests/{tag}"
-        response = self._session.get(
-            url,
-            headers={
-                "Accept": (
-                    "application/vnd.docker.distribution.manifest.v2+json, "
-                    "application/vnd.docker.distribution.manifest.list.v2+json, "
-                    "application/vnd.oci.image.manifest.v1+json, "
-                    "application/vnd.oci.image.index.v1+json"
+        headers = {
+            "Accept": (
+                "application/vnd.docker.distribution.manifest.v2+json, "
+                "application/vnd.docker.distribution.manifest.list.v2+json, "
+                "application/vnd.oci.image.manifest.v1+json, "
+                "application/vnd.oci.image.index.v1+json"
+            )
+        }
+        response = self._session.get(url, headers=headers, timeout=10)
+        if response.status_code == 401:
+            challenge = response.headers.get("WWW-Authenticate", "")
+            scheme, _, challenge_params = challenge.partition(" ")
+            if scheme.lower() == "bearer":
+                parse_challenge = cast(
+                    "Callable[[str], dict[str, str]]", parse_dict_header
                 )
-            },
-            timeout=10,
-        )
+                auth_params = parse_challenge(challenge_params)
+                realm = auth_params.get("realm")
+                if realm:
+                    token_params = {
+                        key: auth_params[key]
+                        for key in ("service", "scope")
+                        if key in auth_params
+                    }
+                    token_response = self._session.get(
+                        realm,
+                        params=token_params,
+                        timeout=10,
+                    )
+                    token_response.raise_for_status()
+                    token_payload = token_response.json()
+                    token = token_payload.get("token") or token_payload.get(
+                        "access_token"
+                    )
+                    if isinstance(token, str) and token:
+                        headers["Authorization"] = f"Bearer {token}"
+                        response = self._session.get(url, headers=headers, timeout=10)
         if response.status_code in {401, 404}:
             return None
         response.raise_for_status()
