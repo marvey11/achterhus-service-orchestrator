@@ -3,6 +3,7 @@ from __future__ import annotations
 from support import (
     ContainerWatchguard,
     DockerImageManager,
+    Mapping,
     ServiceConfig,
     SimpleNamespace,
     TelemetryReporter,
@@ -10,6 +11,7 @@ from support import (
     _DummyDigestSession,
     _DummyDockerClient,
     _DummyDockerImages,
+    _DummyResponse,
     _DummySession,
     pytest,
 )
@@ -62,6 +64,86 @@ def test_image_manager_handles_registry_variants_and_missing_data() -> None:
     )
     digest = empty_manager.get_remote_manifest_digest("ghcr.io/example/app:latest")
     assert digest is None
+
+
+def test_image_manager_retries_manifest_request_with_bearer_token() -> None:
+    class _BearerSession:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object]]] = []
+
+        def get(
+            self,
+            url: str,
+            *,
+            headers: Mapping[str, str] | None = None,
+            timeout: float = 5.0,
+            **kwargs: object,
+        ) -> _DummyResponse:
+            self.calls.append(
+                (
+                    url,
+                    {"headers": dict(headers or {}), "timeout": timeout, **kwargs},
+                )
+            )
+            if url == "https://ghcr.io/v2/example/app/manifests/latest":
+                if headers and "Authorization" in headers:
+                    return _DummyResponse(
+                        headers={"Docker-Content-Digest": "sha256:remote"}
+                    )
+                return _DummyResponse(
+                    status_code=401,
+                    headers={
+                        "WWW-Authenticate": (
+                            'Bearer realm="https://token.example/token", '
+                            'service="ghcr.io", '
+                            'scope="repository:example/app:pull"'
+                        )
+                    },
+                )
+            return _DummyResponse(payload={"token": "anonymous-token"})
+
+        def post(
+            self,
+            url: str,
+            *,
+            json: Mapping[str, object] | None = None,
+            timeout: float = 5.0,
+            **kwargs: object,
+        ) -> _DummyResponse:
+            _ = (url, json, timeout, kwargs)
+            return _DummyResponse()
+
+        def patch(
+            self,
+            url: str,
+            *,
+            json: Mapping[str, object] | None = None,
+            timeout: float = 5.0,
+            **kwargs: object,
+        ) -> _DummyResponse:
+            _ = (url, json, timeout, kwargs)
+            return _DummyResponse()
+
+    session = _BearerSession()
+    manager = DockerImageManager(
+        docker_client=_DummyDockerClient(
+            image_digests=["ghcr.io/example/app@sha256:old"]
+        ),
+        session=session,
+    )
+
+    assert manager.get_remote_manifest_digest("ghcr.io/example/app:latest") == (
+        "sha256:remote"
+    )
+    assert len(session.calls) == 3
+    assert session.calls[1][0] == "https://token.example/token"
+    assert session.calls[1][1]["params"] == {
+        "service": "ghcr.io",
+        "scope": "repository:example/app:pull",
+    }
+    retry_headers = session.calls[2][1]["headers"]
+    assert isinstance(retry_headers, dict)
+    assert retry_headers["Authorization"] == "Bearer anonymous-token"
 
 
 def test_watchguard_stops_timed_out_container() -> None:
