@@ -45,7 +45,10 @@ Run the same checks that CI runs before submitting changes:
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy .
+# run only tests
 uv run pytest
+# run tests and coverage
+./scripts/run-coverage.sh
 ```
 
 Use focused tests during development and the full suite before final submission.
