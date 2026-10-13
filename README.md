@@ -90,8 +90,24 @@ standard error with Rich formatting.
 
 ## Local development
 
+After cloning the repository, bootstrap the development environment and install the
+Git hooks with:
+
+```bash
+./scripts/bootstrap.sh
+```
+
+The script runs the commands below:
+
 ```bash
 uv sync --locked --all-extras --dev
+uv run pre-commit install --install-hooks
+uv run pre-commit install --hook-type pre-push --install-hooks
+```
+
+Run the checks manually with:
+
+```bash
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
