@@ -41,7 +41,7 @@ jobs:
         run: uv run mypy .
 
       - name: Run Test Suite
-        run: uv run pytest
+        run: ./scripts/run-coverage.sh
 
   docker-build-and-push:
     runs-on: ubuntu-latest

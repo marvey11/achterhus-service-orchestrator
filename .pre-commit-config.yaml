@@ -39,7 +39,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: uv run pytest
+        entry: ./scripts/run-coverage.sh
         language: system
         pass_filenames: false
         stages: [pre-push]
