@@ -73,6 +73,8 @@ Every service and dependency named in a graph must be defined under `services`.
 Dependencies must also appear in that graph. Service options may include `image`,
 `environment`, `command`, `volumes`, `timeout_seconds`, `working_dir`, and `network`.
 
+The active `services` configuration for the Achterhus server can be found in the [achterhus-docker-config](https://github.com/marvey11/achterhus-docker-config/tree/main) repository, as part of the service orchestrator [compose configuration](https://github.com/marvey11/achterhus-docker-config/blob/main/service-orchestrator/data/services.yaml).
+
 ## Command line
 
 Install the project and run the orchestrator with a YAML configuration file:
