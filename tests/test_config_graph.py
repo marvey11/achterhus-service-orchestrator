@@ -14,6 +14,7 @@ def test_yaml_selects_named_graphs_with_shared_services(tmp_path: Path) -> None:
     config_path = tmp_path / "services.yaml"
     config_path.write_text(
         """
+version: 1
 services:
   service_a:
     image: example/a:latest
@@ -55,6 +56,7 @@ def test_graph_rejects_unknown_services_and_dependencies() -> None:
     with pytest.raises(ValueError, match="undefined services"):
         OrchestratorConfig.model_validate(
             {
+                "version": 1,
                 "services": {"api": {"image": "example/api:latest"}},
                 "graphs": {"nightly": {"missing": []}},
             }
@@ -63,6 +65,7 @@ def test_graph_rejects_unknown_services_and_dependencies() -> None:
     with pytest.raises(ValueError, match="not included in that graph"):
         OrchestratorConfig.model_validate(
             {
+                "version": 1,
                 "services": {"api": {"image": "example/api:latest"}},
                 "graphs": {"nightly": {"api": ["database"]}},
             }
@@ -72,11 +75,16 @@ def test_graph_rejects_unknown_services_and_dependencies() -> None:
 def test_config_requires_graphs_and_rejects_unknown_graph_name() -> None:
     with pytest.raises(ValueError, match="at least one graph"):
         OrchestratorConfig.model_validate(
-            {"services": {"api": {"image": "example/api:latest"}}, "graphs": {}}
+            {
+                "version": 1,
+                "services": {"api": {"image": "example/api:latest"}},
+                "graphs": {},
+            }
         )
 
     config = OrchestratorConfig.model_validate(
         {
+            "version": 1,
             "services": {"api": {"image": "example/api:latest"}},
             "graphs": {"nightly": {"api": []}},
         }
@@ -103,8 +111,13 @@ def test_service_config_validation_and_yaml_errors(tmp_path: Path) -> None:
 
     invalid_top = tmp_path / "invalid-top.yaml"
     invalid_top.write_text("- service\n- other\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="dictionary top-level"):
+    with pytest.raises(ValueError, match="dictionary at the top-level"):
         OrchestratorConfig.from_yaml_file(invalid_top)
+
+    unsupported = tmp_path / "unsupported.yaml"
+    unsupported.write_text("version: 2\nservices: {}\ngraphs: {}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="version"):
+        OrchestratorConfig.from_yaml_file(unsupported)
 
 
 def test_service_config_normalises_values() -> None:
@@ -123,6 +136,7 @@ def test_service_config_normalises_values() -> None:
 
 def test_graph_handles_failure_and_cycle_detection() -> None:
     config = OrchestratorConfig(
+        version=1,
         services={
             "database": ServiceConfig(image="example/db:latest"),
             "api": ServiceConfig(image="example/api:latest"),
@@ -139,6 +153,7 @@ def test_graph_handles_failure_and_cycle_detection() -> None:
     ]
 
     cycle_config = OrchestratorConfig(
+        version=1,
         services={
             "a": ServiceConfig(image="example/a:latest"),
             "b": ServiceConfig(image="example/b:latest"),

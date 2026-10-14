@@ -4,10 +4,12 @@ import os
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Any, Literal, cast
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+SchemaVersion = Literal[1]
 
 
 class ServiceConfig(BaseModel):
@@ -73,6 +75,13 @@ class GraphScope:
 
 class OrchestratorConfig(BaseModel):
     """Shared service definitions and named execution graphs."""
+
+    model_config = ConfigDict(
+        strict=True,
+        extra="forbid",
+    )
+
+    version: SchemaVersion = Field(..., description="Configuration format version")
 
     services: dict[str, ServiceConfig] = Field(
         ..., description="Map of service name to service configuration"
@@ -171,11 +180,17 @@ class OrchestratorConfig(BaseModel):
 
         raw_text = file_path.read_text(encoding="utf-8")
         expanded_text = os.path.expandvars(raw_text)
-        raw_data: object = yaml.safe_load(expanded_text)
+
+        raw_data: Any = yaml.safe_load(expanded_text)
         if raw_data is None:
             raise ValueError(f"YAML file {file_path} is empty")
+
         if not isinstance(raw_data, dict):
             raise ValueError(
-                f"YAML content in {file_path} must be a dictionary top-level"
+                f"YAML content in {file_path} must be a dictionary at the top-level"
             )
-        return cls.model_validate(raw_data)
+
+        # Explicitly cast to dict[str, Any] to satisfy strict mypy
+        # `disallow_any_generics` rules
+        validated_data = cast("dict[str, Any]", raw_data)
+        return cls.model_validate(validated_data)
