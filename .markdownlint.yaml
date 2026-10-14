@@ -8,3 +8,7 @@ MD007:
 
 # Disable line length restrictions, use soft-wrap-
 MD013: false
+
+# Allow duplicate headers, as long as they are in different sections of the document
+MD024:
+  siblings_only: true
