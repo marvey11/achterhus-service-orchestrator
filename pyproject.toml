@@ -1,9 +1,9 @@
 [project]
 name = "achterhus-service-orchestrator"
-version = "0.1.0"
+version = "1.0.0"
 description = "Docker service orchestrator for the Achterhus home server"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "docker>=7.2.0",
     "pydantic>=2.13.5",

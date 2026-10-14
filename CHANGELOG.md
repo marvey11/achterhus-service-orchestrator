@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0]
+
 ### Added
 
-- Initial implementation.
+- Initial implementation, with connection to the Telemetry API, Docker image-updating, and YAML configuration. Fully containerised and made available through `systemd`.
+
+### Changed
+
+- Pinned Python to version 3.14.
+
+### Fixed
+
+- Duplicate `SUCCESS` reporting from both the orchestrator and the actual service that resulted in an invalid state transition.
+- The algorithm that is checking whether a newer version of a worker service's Docker image exists and the request to eventually download it.
