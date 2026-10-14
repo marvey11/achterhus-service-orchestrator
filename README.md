@@ -33,6 +33,8 @@ mapping from service names to the services that must complete first. Use an empt
 list for a service with no dependencies in that graph.
 
 ```yaml
+version: 1
+
 services:
   postgres:
     image: ghcr.io/example/postgres:latest

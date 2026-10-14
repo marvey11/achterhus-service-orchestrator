@@ -17,6 +17,7 @@ from support import (
 
 def test_orchestrator_executes_each_service_in_dependency_order() -> None:
     config = OrchestratorConfig(
+        version=1,
         services={
             "database": ServiceConfig(image="ghcr.io/example/db:latest"),
             "api": ServiceConfig(image="ghcr.io/example/api:latest"),
@@ -36,6 +37,7 @@ def test_orchestrator_executes_each_service_in_dependency_order() -> None:
 
 def test_orchestrator_registers_run_before_starting_container() -> None:
     config = OrchestratorConfig(
+        version=1,
         services={"worker": ServiceConfig(image="ghcr.io/example/worker:latest")},
         graphs={"nightly": {"worker": set()}},
     )
@@ -69,6 +71,7 @@ def test_start_cli_and_image_reference_parsing(
     config_path = tmp_path / "services.yaml"
     config_path.write_text(
         """
+version: 1
 services:
   app:
     image: ghcr.io/example/app:latest
