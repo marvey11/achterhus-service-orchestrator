@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Within the same run, each distinct Docker image reference is checked for pulling only once, even if more worker services use the same image.
+
 ## [1.0.0]
 
 ### Added

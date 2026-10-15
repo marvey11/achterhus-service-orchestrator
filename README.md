@@ -4,6 +4,8 @@ The Achterhus service orchestrator resolves Docker service dependency graphs, en
 necessary image is current, and executes the configured services in dependency order.
 Each invocation reads the configuration and runs the selected graph once, then exits.
 It does not stay running to watch for or schedule future executions.
+Within one invocation, it checks each distinct image reference for updates once, even
+when multiple services use that image.
 
 ## Responsibilities
 
