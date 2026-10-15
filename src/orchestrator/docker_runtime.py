@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import docker
 import requests
-from requests.utils import parse_dict_header
+from requests.utils import (
+    parse_dict_header,  # pyright: ignore[reportUnknownVariableType]
+)
 
 from .graph import WatchguardResult
 from .telemetry import TelemetryReporter

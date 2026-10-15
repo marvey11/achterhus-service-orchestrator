@@ -8,7 +8,7 @@
 - Package code lives in `src/orchestrator/`.
 - Tests live in `tests/` and use pytest.
 - Dependencies and tool configuration are defined in `pyproject.toml`; `uv.lock` is committed.
-- `pyproject.toml` is the project source of truth for Python version, dependency groups, Ruff settings, mypy settings, pytest configuration, and coverage thresholds. If a configuration question arises, check `pyproject.toml` before relying on editor defaults.
+- `pyproject.toml` is the project source of truth for Python version, dependency groups, Ruff settings, mypy and Pyright settings, pytest configuration, and coverage thresholds. If a configuration question arises, check `pyproject.toml` before relying on editor defaults.
 
 ## Development commands
 
@@ -20,11 +20,12 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy .
+uv run pyright
 ```
 
 ## Development Conventions
 
-- Target Python 3.12 or newer.
+- Target Python 3.14 or newer.
 - Add explicit annotations for functions, parameters, and return values.
 - Prefer `typing.Annotated` for Typer command arguments and options when defining
   CLI metadata.
@@ -45,6 +46,7 @@ Run the same checks that CI runs before submitting changes:
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy .
+uv run pyright
 # run only tests
 uv run pytest
 # run tests and coverage
