@@ -1,6 +1,6 @@
 [project]
 name = "achterhus-service-orchestrator"
-version = "1.0.0"
+version = "1.0.1"
 description = "Docker service orchestrator for the Achterhus home server"
 readme = "README.md"
 requires-python = ">=3.14"
