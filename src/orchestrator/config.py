@@ -4,12 +4,12 @@ import os
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, Self, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-SchemaVersion = Literal[1]
+type SchemaVersion = Literal[1]
 
 
 class ServiceConfig(BaseModel):
@@ -173,7 +173,7 @@ class OrchestratorConfig(BaseModel):
         )
 
     @classmethod
-    def from_yaml_file(cls, path: Path | str) -> OrchestratorConfig:
+    def from_yaml_file(cls, path: Path | str) -> Self:
         file_path = Path(path)
         if not file_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {file_path}")
@@ -190,7 +190,5 @@ class OrchestratorConfig(BaseModel):
                 f"YAML content in {file_path} must be a dictionary at the top-level"
             )
 
-        # Explicitly cast to dict[str, Any] to satisfy strict mypy
-        # `disallow_any_generics` rules
         validated_data = cast("dict[str, Any]", raw_data)
         return cls.model_validate(validated_data)
