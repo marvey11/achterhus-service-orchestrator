@@ -40,6 +40,9 @@ jobs:
       - name: MyPy Type-checking
         run: uv run mypy .
 
+      - name: Pyright Type-checking
+        run: uv run pyright
+
       - name: Run Test Suite
         run: ./scripts/run-coverage.sh
 
