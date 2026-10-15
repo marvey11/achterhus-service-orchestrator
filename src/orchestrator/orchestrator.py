@@ -39,6 +39,7 @@ class Orchestrator:
 
     def run(self) -> list[ExecutionBatch]:
         batches: list[ExecutionBatch] = []
+        checked_images: set[str] = set()
         while self.graph.is_active:
             ready = self.graph.get_ready_services()
             if not ready:
@@ -48,8 +49,10 @@ class Orchestrator:
                 service = self.scope.services[service_name]
                 run_id = str(uuid.uuid4())
                 self.telemetry_reporter.register_run(service_name, run_id)
-                if self.image_manager.ensure_image_current(service.image):
-                    self.telemetry_reporter.update_status(run_id, "IMAGE_PULLING")
+                if service.image not in checked_images:
+                    checked_images.add(service.image)
+                    if self.image_manager.ensure_image_current(service.image):
+                        self.telemetry_reporter.update_status(run_id, "IMAGE_PULLING")
                 self.telemetry_reporter.update_status(run_id, "STARTING")
                 result = self.watchguard.run_container(
                     service_name,

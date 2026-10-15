@@ -4,7 +4,7 @@
 
 ## Repository layout
 
-- This is a Python 3.12+ project using the `src/` layout.
+- This is a Python 3.14+ project using the `src/` layout.
 - Package code lives in `src/orchestrator/`.
 - Tests live in `tests/` and use pytest.
 - Dependencies and tool configuration are defined in `pyproject.toml`; `uv.lock` is committed.

@@ -35,6 +35,27 @@ def test_orchestrator_executes_each_service_in_dependency_order() -> None:
     assert [batch.services for batch in batches] == [("database",), ("api",)]
 
 
+def test_orchestrator_checks_each_image_once_per_run() -> None:
+    image_manager = _DummyImageManager()
+    config = OrchestratorConfig(
+        version=1,
+        services={
+            "worker_a": ServiceConfig(image="ghcr.io/example/worker:latest"),
+            "worker_b": ServiceConfig(image="ghcr.io/example/worker:latest"),
+        },
+        graphs={"nightly": {"worker_a": set(), "worker_b": set()}},
+    )
+    orchestrator = Orchestrator(
+        config,
+        image_manager=image_manager,
+        watchguard=_DummyWatchguard(),
+    )
+
+    orchestrator.run()
+
+    assert image_manager.calls == ["ghcr.io/example/worker:latest"]
+
+
 def test_orchestrator_registers_run_before_starting_container() -> None:
     config = OrchestratorConfig(
         version=1,
