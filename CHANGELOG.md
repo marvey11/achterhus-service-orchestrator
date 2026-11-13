@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-13
+
+### Added
+
+- Added variable examples for new Git snapshot creation and retention policy application services.
+
+### Changed
+
+- Improve release mechanism for Docker images; split into main branch and semantic version releases. Additional floating semantic version Docker image tags are created.
+- Updates dependencies for general improvements and to fix vulerabilities.
+
 ## [1.0.1] - 2026-10-15
 
 ### Added
