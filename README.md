@@ -7,6 +7,21 @@ It does not stay running to watch for or schedule future executions.
 Within one invocation, it checks each distinct image reference for updates once, even
 when multiple services use that image.
 
+## Architecture
+
+The repository is structured around a small CLI application with a single execution loop and a
+pair of runtime collaborators:
+
+- `src/orchestrator/main.py` provides the Typer entrypoint and CLI wiring for the installed `orchestrator` command.
+- `src/orchestrator/config.py` defines the YAML configuration schema and validation rules for service definitions and graph selection.
+- `src/orchestrator/graph.py` models dependency ordering, execution batches, and the watchguard state transitions.
+- `src/orchestrator/orchestrator.py` resolves a graph, tracks completed services, and schedules each service in dependency order.
+- `src/orchestrator/docker_runtime.py` refreshes container images and owns the runtime watchguard used to create and supervise containers.
+- `src/orchestrator/telemetry.py` and `src/orchestrator/contracts.py` report run lifecycle events to the Telemetry API when configured.
+
+This keeps each layer focused: configuration validation stays separate from graph scheduling,
+while Docker runtime behavior remains isolated from the CLI entrypoint.
+
 ## Responsibilities
 
 - Read and validate a YAML service configuration
@@ -122,5 +137,9 @@ uv run pyright
 ## Container image workflow
 
 The project includes a multi-stage Dockerfile suitable for the GitHub Actions pipeline.
-The workflow builds and pushes the image to GHCR for pushes to the default branch and
-version tags.
+The repository now separates the workflows by responsibility:
+
+- `.github/workflows/ci.yml` builds and pushes the main branch image as `latest` plus a short SHA tag whenever code lands on `main`.
+- `.github/workflows/release.yml` runs when a version tag is pushed, creates the matching GitHub release, and pushes immutable semver tags such as `1.2.8`, along with floating aliases like `1.2` and `1`.
+
+This keeps the default-branch image independent from release artifacts and preserves the semantic-version release tags as immutable images.
